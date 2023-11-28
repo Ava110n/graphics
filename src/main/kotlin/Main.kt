@@ -34,19 +34,45 @@ import java.awt.event.MouseEvent
 @Composable
 @Preview
 fun App() {
-    var xMin by remember { mutableStateOf(-10) }
-    var yMin by remember { mutableStateOf(0) }
-    var xMax by remember { mutableStateOf( 10) }
+    var xMin by remember { mutableStateOf(-5.0) }
+    var yMin by remember { mutableStateOf(-5.0) }
+    var yMax by remember { mutableStateOf(5.0) }
+    var xMax by remember { mutableStateOf( 5.0) }
     var yMinMax by remember{mutableStateOf(0f)}
     var selectY by remember{mutableStateOf(true)}
     val textMeasurer = rememberTextMeasurer()
     var points by remember { mutableStateOf(mutableMapOf<Float, Float>()) }
+    var pointsD by remember { mutableStateOf(mutableMapOf<Float, Float>()) }
     Canvas(modifier = Modifier.fillMaxSize().clickable{}.
         onPointerEvent(PointerEventType.Press){
+
+            var scales = Scales(this.size.width.toInt(), this.size.height.toInt(),
+                xMin, xMax, yMin, yMax)
+
             var point = it.changes.first().position
             points[point.x] = point.y
+
+
+            var s = Screen(point.x.toInt(), point.y.toInt())
+            var d = Decart(0f, 0f)
+
+            d = d.scrToDec(s, scales)
+            pointsD[d.x] = d.y
         },
         onDraw = {
+            var scales = Scales(this.size.width.toInt(), this.size.height.toInt(),
+                xMin, xMax,yMin, yMax)
+
+            /*for(point in points) {
+                var s = Screen(point.key.toInt(), point.value.toInt())
+                var d = Decart(0f, 0f)
+
+                d = d.scrToDec(s, scales)
+                pointsD[d.x] = d.y
+            }*/
+
+
+
             var yMax = this.size.height*(xMax-xMin)/this.size.width+yMin
             if(yMax*yMin<0){
                 yMinMax = ((xMax-xMin)/(xMax+xMin)).toFloat()
@@ -59,24 +85,38 @@ fun App() {
             )
             //ось OY
             drawLine(color = Color.Black,
-                start = Offset(-this.size.width*xMin/(xMax-xMin), 0f),
-                end = Offset(-this.size.width*xMin/(xMax-xMin), this.size.height))
-            for(point in points) {
+                start = Offset((-this.size.width*xMin/(xMax-xMin)).toFloat(), 0f),
+                end = Offset((-this.size.width*xMin/(xMax-xMin)).toFloat(), this.size.height))
+            /*for(point in points) {
+                var s = Screen(point.key.toInt(), point.value.toInt())
+                var d = Decart(0f, 0f)
+
+                d = d.scrToDec(s, scales)
+                pointsD[d.x] = d.y
+            }*/
+            for(point in pointsD){
+                var s = Screen(0,0)
+                var d = Decart(point.key,point.value)
+                s = s.decToScr(d, scales)
+                //println(pointsD.size)
                 drawCircle(
                     color = Color.Green,
                     radius = 10f,
-                    center = Offset(point.key, point.value)
+                    center = Offset(s.x.toFloat(), s.y.toFloat())
                 )
             }
-            for(i in xMin .. xMax) {
+            for(i in xMin.toInt() ..xMax.toInt()) {
                 drawLine(color = Color.Black,
-                    start = Offset(this.size.width*(i-xMin)/(xMax-xMin),
+                    start = Offset(
+                        (this.size.width*(i-xMin)/(xMax-xMin)).toFloat(),
                         this.size.height*(1+yMinMax)/2-5),
-                    end = Offset(this.size.width*(i-xMin)/(xMax-xMin),
+                    end = Offset(
+                        (this.size.width*(i-xMin)/(xMax-xMin)).toFloat(),
                         this.size.height*(1+yMinMax)/2+5))
-                drawText(textMeasurer = textMeasurer, text = i.toString(),
-                    topLeft = Offset(this.size.width*(i-xMin)/(xMax-xMin)-5,
-                        this.size.height*(1+yMinMax)/2))
+                /*drawText(textMeasurer = textMeasurer, text = i.toString(),
+                    topLeft = Offset(
+                        (this.size.width*(i-xMin)/(xMax-xMin)-5).toFloat(),
+                        this.size.height*(1+yMinMax)/2))*/
             }
         })
 
@@ -85,12 +125,12 @@ fun App() {
             Column(modifier = Modifier.padding(10.dp, 10.dp)){
                 Text("xMin")
                 TextField(value = xMin.toString(),
-                    onValueChange = { value -> xMin = value.toIntOrNull() ?:-10 })
+                    onValueChange = { value -> xMin = value.toDoubleOrNull() ?: 0.0 })
             }
             Column(modifier = Modifier.padding(10.dp, 10.dp)) {
                 Text("xMax")
                 TextField(value = xMax.toString(),
-                    onValueChange = { value -> xMax = value.toIntOrNull() ?: 0 })
+                    onValueChange = { value -> xMax = value.toDoubleOrNull() ?: 0.0 })
             }
             Column{
                 Row{
@@ -120,10 +160,35 @@ fun App() {
                 }
                 else{
                     TextField(value = xMin.toString(),
-                        onValueChange = { value -> yMin = value.toIntOrNull() ?: 0 })
+                        onValueChange = { value -> yMin = (value.toIntOrNull() ?: 0).toDouble() })
                 }
             }
         }
+    }
+}
+
+open class Scales(var w: Int = 0, var h: Int = 0,
+                  var xMin: Double = -5.0, var xMax: Double = 5.0,
+                  var yMin: Double = -5.0, var yMax: Double = 5.0){
+
+    /*var xMax: Double
+        set(value){xMax = value}
+        get() = xMax*/
+
+}
+class Decart(var x: Float,var y: Float){
+    fun scrToDec(s: Screen, scales: Scales):Decart{
+        var x = s.x*(scales.xMax-scales.xMin)/scales.w+scales.xMin
+        var y = scales.yMax - s.y*(scales.yMax-scales.yMin)/scales.h
+        return Decart(x.toFloat(),y.toFloat())
+    }
+
+}
+class Screen(var x: Int,var y: Int){
+    fun decToScr(d: Decart, scales: Scales):Screen{
+        var x = (d.x-scales.xMin)*scales.w/(scales.xMax-scales.xMin)
+        var y = (scales.yMax-d.y)*scales.h/(scales.yMax-scales.yMin)
+        return Screen(x.toInt(),y.toInt())
     }
 }
 
